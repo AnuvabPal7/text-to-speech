@@ -1,0 +1,318 @@
+{
+  "info": {
+    "_postman_id": "8f657a84-7a32-4115-b771-96894c25fca1",
+    "name": "Text-to-Speech (TTS) REST API Collection",
+    "description": "Comprehensive Postman test collection for the Java Spring Boot Text-to-Speech application, covering health checks, voice querying, speech generation across multiple languages, error testing, and audio download.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Health & Info",
+      "item": [
+        {
+          "name": "Health Check (GET /api/health)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "health"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "2. Voices",
+      "item": [
+        {
+          "name": "Get All Voices (GET /api/voices)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/voices",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "voices"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Voices Filtered by Language (English)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/voices?language=en-US",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "voices"],
+              "query": [
+                {
+                  "key": "language",
+                  "value": "en-US"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Voices Filtered by Language (Hindi)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/voices?language=hi-IN",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "voices"],
+              "query": [
+                {
+                  "key": "language",
+                  "value": "hi-IN"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "3. Speech Generation (POST /api/tts)",
+      "item": [
+        {
+          "name": "Generate Speech - English (US Joanna)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Hello! Welcome to our Java Spring Boot Text to Speech application.\",\n  \"language\": \"en-US\",\n  \"voice\": \"Joanna\",\n  \"speed\": 1.0,\n  \"pitch\": 1.0\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/tts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "tts"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Generate Speech - Hindi (Kajal)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"नमस्ते! हमारी टेक्स्ट टू स्पीच ऐप्लिकेशन में आपका स्वागत है।\",\n  \"language\": \"hi-IN\",\n  \"voice\": \"Kajal\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/tts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "tts"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Generate Speech - Gujarati (Kajal Bilingual)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"નમસ્તે! ટેક્સ્ટ ટુ સ્પીચ એપ્લિકેશનમાં આપનું સ્વાગત છે.\",\n  \"language\": \"gu-IN\",\n  \"voice\": \"Kajal\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/tts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "tts"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Generate Speech - Spanish (Lucia)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"¡Hola! Bienvenido a la aplicación de conversión de texto a voz.\",\n  \"language\": \"es-ES\",\n  \"voice\": \"Lucia\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/tts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "tts"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "4. History & Audio Files",
+      "item": [
+        {
+          "name": "Get Speech History (GET /api/history)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/history?limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "history"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Stream / Download Audio File (GET /api/audio/:filename)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/audio/demo-initial.wav",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "audio", "demo-initial.wav"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete History Record by ID (DELETE /api/history/:id)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/history/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "history", "1"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Clear All History Records (DELETE /api/history)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/history",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "history"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "5. Error & Validation Testing",
+      "item": [
+        {
+          "name": "Test: Empty Text (Expects 400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"   \",\n  \"language\": \"en-US\",\n  \"voice\": \"Joanna\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/tts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "tts"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Test: Unsupported Language (Expects 400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Hello\",\n  \"language\": \"klingon-001\",\n  \"voice\": \"Joanna\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/tts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "tts"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Test: Mismatched Voice & Language (Expects 400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Hello\",\n  \"language\": \"hi-IN\",\n  \"voice\": \"Joanna\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/tts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "tts"]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,41 @@
+# Maven build outputs
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+
+# Node & Frontend outputs
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# Audio temporary storage
+storage/
+*.mp3
+*.wav
+
+# IDE & Editor files
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+*.sublime-project
+*.sublime-workspace
+.DS_Store
+
+# Logs
+*.log
+logs/
+
+# Secrets & Environment
+.env
+.env.*
+!.env.example
