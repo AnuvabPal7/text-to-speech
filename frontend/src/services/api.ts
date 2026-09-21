@@ -1,6 +1,12 @@
 import { Voice, TtsRequest, TtsResponse, HealthStatus, SpeechHistoryItem, ApiError } from '../types';
 
-const API_BASE_URL = ''; // Relative path for proxy / same-origin
+// In local dev, Vite's proxy (vite.config.ts) forwards "/api" to the Spring
+// Boot backend on :8080, so an empty base URL works fine there.
+// In production (e.g. on Vercel), there is no dev proxy - the frontend and
+// backend are on completely different domains - so VITE_API_BASE_URL must be
+// set to the deployed backend's URL (e.g. https://your-app.onrender.com),
+// or every request below will hit Vercel's own domain instead of Render's.
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
 export const DEFAULT_LANGUAGES = [
   { code: 'en-US', name: 'English (United States)', nativeName: 'English (US)', flag: '🇺🇸' },
