@@ -3,6 +3,11 @@
 
 A complete, production-grade Text-to-Speech web application developed according to the specifications in the **"Java - Text-to-Speech Application.pdf"**.
 
+**🔗 Live Demo:** https://text-to-speech-ashen-psi.vercel.app
+**🔗 Backend Health Check:** https://text-to-speech-lttm.onrender.com/api/health
+
+> Backend is hosted on Render's free tier, which spins down after periods of inactivity. The first request after idle time may take 30–60 seconds to respond while the instance wakes up.
+
 ---
 
 ## 1. Architecture & Technology Stack
@@ -13,27 +18,32 @@ text-to-speech/
 │   ├── src/
 │   │   ├── main/
 │   │   │   ├── java/com/example/tts/
-│   │   │   │   ├── config/      # CORS, Storage, and TTS Properties
+│   │   │   │   ├── config/      # CORS, Storage, Rate Limit, and TTS Properties
 │   │   │   │   ├── controller/  # REST Controllers (TTS, Voices, Health, History)
 │   │   │   │   ├── dto/         # Request, Response, and Health DTOs
 │   │   │   │   ├── exception/   # Global Exception Handler & Custom Exceptions
 │   │   │   │   ├── model/       # JPA Entities (SpeechHistory)
+│   │   │   │   ├── ratelimit/   # Per-IP sliding-window rate limiter (guards POST /api/tts)
 │   │   │   │   ├── repository/  # Spring Data JPA Repositories
-│   │   │   │   ├── service/     # TTS Synthesis, Voice Registry & History Services
+│   │   │   │   ├── service/     # TTS Synthesis, Voice Registry, History & Audio Cleanup Services
 │   │   │   │   └── TtsApplication.java
 │   │   │   └── resources/
 │   │   │       ├── application.properties
 │   │   │       ├── schema.sql
 │   │   │       └── db/migration/V1__create_speech_history_table.sql
 │   │   └── test/                # MockMvc & JUnit 5 Integration Test Suite
-│   └── pom.xml                  # Maven Build Descriptor (Java 17/21)
+│   ├── Dockerfile               # Multi-stage build (Render has no native Java runtime)
+│   ├── .dockerignore
+│   └── pom.xml                  # Maven Build Descriptor (Java 17)
 ├── frontend/                    # React 18+ Vite Single Page Application
 │   ├── src/
 │   │   ├── components/          # Modular React UI Components
-│   │   ├── services/            # Axios / Fetch API Service Layer
-│   │   ├── types/               # TypeScript Definitions
+│   │   ├── services/            # Fetch-based API Service Layer
+│   │   ├── types/                # TypeScript Definitions
 │   │   ├── App.tsx
-│   │   └── main.tsx
+│   │   ├── main.tsx
+│   │   └── vite-env.d.ts        # Required for import.meta.env typing
+│   ├── .env.example
 │   ├── package.json
 │   └── vite.config.ts
 ├── postman/                     # Postman Test Suite
@@ -43,63 +53,78 @@ text-to-speech/
 ```
 
 ### Backend
-* **Java**: 17 or 21 LTS
+* **Java**: 17 LTS
 * **Framework**: Spring Boot 3.3.x (Spring Web, Spring Boot Validation, Spring Data JPA / Hibernate)
 * **Build Tool**: Apache Maven (`pom.xml`)
-* **Database**: PostgreSQL with Hibernate ORM and Flyway database migrations
-* **Database Driver**: `org.postgresql:postgresql`
-* **Test Suite**: JUnit 5, Spring Boot Test, Spring MockMvc, H2 in-memory test database
+* **Database**: PostgreSQL (Supabase) with Hibernate ORM and Flyway database migrations
+* **Test Suite**: JUnit 5, Spring Boot Test, Spring MockMvc
+* **Rate Limiting**: In-memory sliding-window limiter (per client IP) protecting `POST /api/tts`
+* **Audio Cleanup**: Scheduled job deletes generated audio files older than a configurable retention window
+* **Deployment**: Docker (Render has no native Java runtime — see `backend/Dockerfile`)
 
 ### Frontend
 * **UI Framework**: React 18+ with TypeScript
 * **Tooling**: Vite
 * **Styling**: Tailwind CSS
 * **Icons**: Lucide React
-* **Components**: TextInput, LanguageSelector, VoiceSelector, GenerateButton, AudioPlayer, DownloadButton, ErrorMessage, HistoryList
+* **Components**: TextInput, LanguageSelector, VoiceSelector, GenerateButton, AudioPlayer, DownloadButton, ErrorMessage, SpeechHistoryList
+* **Deployment**: Vercel
 
 ---
 
-## 2. Text-to-Speech Provider Selection
+## 2. Text-to-Speech Provider
 
-### Selected Provider: **AWS Amazon Polly** (with Google Cloud TTS support)
+### Selected Provider: **AWS Amazon Polly**
 
 #### Why AWS Amazon Polly?
-1. **Multilingual Quality**: Industry-leading natural neural and standard voices with superior support for Indian regional languages (Hindi `hi-IN`, Gujarati `gu-IN`, Marathi `mr-IN`) as well as English (`en-US`, `en-GB`, `en-IN`), Spanish (`es-ES`, `es-MX`), French (`fr-FR`), and German (`de-DE`).
-2. **Standard AWS SDK v2**: Uses AWS SDK for Java v2 (`software.amazon.awssdk:polly`), providing native control over speed, pitch, and voice styles.
-3. **Generous Free Tier**: AWS offers **5,000,000 free characters per month** for standard voices and **1,000,000 free characters per month** for neural voices on the AWS Free Tier.
-4. **Built-in Fallback / Local Development Mode**: If no AWS credentials are provided during initial local evaluation, the backend seamlessly generates a synthesized development audio file with harmonic speech modulation so you can test all features end-to-end immediately without blocking!
+1. **Multilingual Quality**: Industry-leading natural neural and standard voices across English (`en-US`, `en-GB`, `en-IN`), Hindi (`hi-IN`), Spanish (`es-ES`, `es-MX`), French (`fr-FR`), and German (`de-DE`).
+2. **Standard AWS SDK v2**: Uses AWS SDK for Java v2 (`software.amazon.awssdk:polly`), providing native control over voice and output format.
+3. **Generous Free Tier**: AWS offers **5,000,000 free characters/month** for standard voices and **1,000,000 free characters/month** for neural voices.
+4. **Built-in Fallback / Local Development Mode**: If no AWS credentials are provided, the backend generates a synthesized placeholder audio file so you can test the full flow end-to-end without AWS access.
 
-### Supported Languages & Neural Voices
+### Supported Languages & Voices
 
-| Language | Code | Voices Available | Gender | Accents |
-|---|---|---|---|---|
-| **English (US)** | `en-US` | `Joanna`, `Matthew`, `Kendra`, `Salli` | Female / Male | American |
-| **English (UK)** | `en-GB` | `Amy`, `Brian`, `Arthur` | Female / Male | British |
-| **English (India)** | `en-IN` | `Kajal`, `Aditi` | Female | Indian |
-| **Hindi (India)** | `hi-IN` | `Kajal`, `Aditi` | Female | Standard Hindi |
-| **Gujarati (India)** | `gu-IN` | `Kajal`, `Aditi` | Female | Standard Gujarati |
-| **Marathi (India)** | `mr-IN` | `Kajal`, `Aditi` | Female | Standard Marathi |
-| **Spanish** | `es-ES`, `es-MX` | `Lucia`, `Enrique`, `Mia`, `Andres` | Female / Male | Castilian / Mexican |
-| **French** | `fr-FR` | `Lea`, `Remi` | Female / Male | Metropolitan French |
-| **German** | `de-DE` | `Vicki`, `Daniel` | Female / Male | Standard German |
+This table reflects what's actually registered in `VoiceService.java` — not the original spec doc, which listed a couple of languages (Gujarati, Marathi) that were never implemented, since AWS Polly itself doesn't offer those languages.
+
+| Language | Code | Voices Available | Engine |
+|---|---|---|---|
+| **English (US)** | `en-US` | Joanna, Matthew, Kendra, Salli | Neural |
+| **English (UK)** | `en-GB` | Amy, Brian, Arthur | Neural |
+| **English (India)** | `en-IN` | Kajal (Neural), Aditi (Standard), Raveena (Standard) | Mixed |
+| **Hindi (India)** | `hi-IN` | Kajal (Neural), Aditi (Standard) | Mixed |
+| **Spanish (Spain)** | `es-ES` | Lucia (Neural), Enrique (Standard) | Mixed |
+| **Spanish (Mexico)** | `es-MX` | Mia, Andres | Neural |
+| **French** | `fr-FR` | Lea, Remi | Neural |
+| **German** | `de-DE` | Vicki, Daniel | Neural |
+
+> **Known gap:** the backend supports `es-MX` (Spanish Mexico) as shown above, but the frontend's language dropdown (`DEFAULT_LANGUAGES` in `services/api.ts`) doesn't currently list it as a selectable option — only `es-ES` is exposed in the UI. The API itself works fine for `es-MX` if called directly (e.g. via Postman).
 
 ---
 
-## 3. Environment Variables Configuration
+## 3. Environment Variables
 
-> **IMPORTANT**: As requested, **NO `.env` FILE IS REQUIRED OR CREATED** for the Java backend. All configurations are read directly from your operating system environment or IntelliJ IDEA Run Configurations.
+### Backend (set on Render, or locally via OS/IDE — no `.env` file used for the backend)
 
-### Configuration Properties (`application.properties`):
+**Required:**
+```
+TS_PASSWORD                  # Supabase/PostgreSQL database password
+TTS_AWS_ACCESS_KEY_ID        # AWS access key
+TTS_AWS_SECRET_ACCESS_KEY    # AWS secret key
+```
+
+**CORS (required once you have a deployed frontend URL):**
+```
+CORS_ALLOWED_ORIGINS=https://your-frontend.vercel.app
+```
+
+**Optional (all have sensible defaults):**
 ```properties
 # Database
 spring.datasource.url=${DB_URL:jdbc:postgresql://localhost:5432/tts_db}
 spring.datasource.username=${DB_USERNAME:postgres}
-spring.datasource.password=${TS_PASSWORD}
 
 # AWS Polly
-aws.region=${TTS_AWS_REGION:ap-south-1}
-aws.access-key-id=${TTS_AWS_ACCESS_KEY_ID:}
-aws.secret-access-key=${TTS_AWS_SECRET_ACCESS_KEY:}
+aws.region=${TTS_AWS_REGION:ap-northeast-2}
 aws.polly.default-voice=${TTS_AWS_POLLY_VOICE:Joanna}
 aws.polly.output-format=${TTS_AWS_POLLY_OUTPUT_FORMAT:mp3}
 aws.polly.engine=${TTS_AWS_POLLY_ENGINE:standard}
@@ -107,88 +132,59 @@ aws.polly.engine=${TTS_AWS_POLLY_ENGINE:standard}
 # Text to Speech
 tts.provider=${TTS_PROVIDER:polly}
 tts.max-text-length=5000
-tts.audio-format=mp3
 tts.storage-dir=${TTS_STORAGE_DIR:./storage/audio}
+tts.retention-hours=${TTS_AUDIO_RETENTION_HOURS:24}   # generated audio files older than this are auto-deleted
+
+# Rate Limiting (protects the paid POST /api/tts endpoint)
+tts.rate-limit.enabled=${TTS_RATE_LIMIT_ENABLED:true}
+tts.rate-limit.requests-per-window=${TTS_RATE_LIMIT_MAX:10}
+tts.rate-limit.window-seconds=${TTS_RATE_LIMIT_WINDOW_SECONDS:60}
 ```
 
-### How to Configure AWS Polly Credentials:
-1. Obtain an AWS Access Key ID and Secret Access Key from the AWS Management Console (IAM).
-2. Set `TTS_AWS_ACCESS_KEY_ID` and `TTS_AWS_SECRET_ACCESS_KEY` (or standard `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`).
-3. Set `TTS_AWS_REGION` (e.g. `ap-south-1` or `us-east-1`).
+### Frontend (set on Vercel, or locally in `frontend/.env`)
+
+```
+VITE_API_BASE_URL=https://your-backend.onrender.com
+```
+
+Leave this unset for local development — Vite's dev server proxy (`vite.config.ts`) forwards `/api` to `http://localhost:8080` automatically. It's required in production because there's no such proxy on Vercel; without it, the frontend would try to call itself instead of the real backend. See `frontend/.env.example`.
 
 ---
 
-## 4. How to Configure Environment Variables
+## 4. Deployment
 
-### In IntelliJ IDEA (Recommended):
-1. Open IntelliJ IDEA and open the `backend` directory.
-2. From the top menu, go to **Run > Edit Configurations...**
-3. Select your `TtsApplication` Spring Boot configuration (or click `+` and select **Spring Boot**).
-4. In the **Environment variables** field, enter:
-   ```text
-   TTS_AWS_ACCESS_KEY_ID=your_key;TTS_AWS_SECRET_ACCESS_KEY=your_secret;TTS_AWS_REGION=ap-south-1;DB_URL=jdbc:postgresql://localhost:5432/tts_db;DB_USERNAME=postgres;TS_PASSWORD=your_password
-   ```
-5. Click **Apply** and **OK**.
-6. Click the green **Play/Debug** icon to run.
+### Backend → Render (Docker)
+1. New Web Service → connect this repo.
+2. **Root Directory**: `backend`
+3. **Runtime**: Docker (Render has no native Java/JVM runtime — see `backend/Dockerfile`)
+4. **Dockerfile Path**: `Dockerfile`
+5. **Docker Build Context Directory**: `backend`
+6. Set the required environment variables listed above.
+7. Deploy, then verify: `curl https://your-backend.onrender.com/api/health`
 
-### On Windows (Command Prompt or PowerShell):
-```powershell
-# PowerShell
-$env:TTS_AWS_ACCESS_KEY_ID="your_aws_key"
-$env:TTS_AWS_SECRET_ACCESS_KEY="your_aws_secret"
-$env:TTS_AWS_REGION="ap-south-1"
-$env:DB_URL="jdbc:postgresql://localhost:5432/tts_db"
-$env:DB_USERNAME="postgres"
-$env:TS_PASSWORD="your_postgres_password"
-
-# Navigate to backend and run with Maven
-cd backend
-mvn spring-boot:run
-```
-
-### On macOS / Linux:
-```bash
-export TTS_AWS_ACCESS_KEY_ID="your_aws_key"
-export TTS_AWS_SECRET_ACCESS_KEY="your_aws_secret"
-export TTS_AWS_REGION="ap-south-1"
-export DB_URL="jdbc:postgresql://localhost:5432/tts_db"
-export DB_USERNAME="postgres"
-export TS_PASSWORD="your_postgres_password"
-
-cd backend
-./mvnw spring-boot:run
-# or: mvn spring-boot:run
-```
+### Frontend → Vercel
+1. New Project → connect this repo.
+2. **Root Directory**: `frontend`
+3. Framework preset: Vite (auto-detected)
+4. Add environment variable `VITE_API_BASE_URL` = your Render backend URL.
+5. Deploy.
+6. Go back to Render and set `CORS_ALLOWED_ORIGINS` to your new Vercel URL, then redeploy the backend.
 
 ---
 
 ## 5. Database Setup (Supabase PostgreSQL & Flyway)
 
-The application is natively configured for **Supabase PostgreSQL** (or any cloud/local PostgreSQL instance) using **Flyway** for database migrations.
+The application is configured for **Supabase PostgreSQL** using **Flyway** for migrations.
 
 ### Required Supabase Connection Details:
-1. **DB URL (`DB_URL`)**:
-   - **Connection Pooler (Recommended)**:
-     `jdbc:postgresql://aws-0-[region].pooler.supabase.com:6543/postgres?sslmode=require`
-   - **Direct Connection**:
-     `jdbc:postgresql://db.[project-ref].supabase.co:5432/postgres?sslmode=require`
-2. **DB Username (`DB_USERNAME`)**:
-   - For Transaction Pooler: `postgres.[project-ref]`
-   - For Direct Connection: `postgres`
-3. **DB Password (`DB_PASSWORD`)**: Your Supabase database password set during project creation.
-4. **SSL Settings**: `sslmode=require` (appended to JDBC URL or via `spring.datasource.hikari.data-source-properties.sslmode=require`).
-5. **HikariCP Connection Pool Settings** (pre-configured in `application.properties`):
-   - `maximum-pool-size=5` (optimal for Supabase serverless/free-tier limits)
-   - `minimum-idle=1`
-   - `idle-timeout=30000` (30s)
-   - `max-lifetime=60000` (60s, prevents stale connection errors on Supabase PgBouncer/Supavisor)
-   - `connection-timeout=20000` (20s)
+1. **DB URL (`DB_URL`)**: `jdbc:postgresql://aws-0-[region].pooler.supabase.com:6543/postgres?sslmode=require` (connection pooler, recommended)
+2. **DB Username (`DB_USERNAME`)**: `postgres.[project-ref]` (pooler) or `postgres` (direct)
+3. **DB Password (`TS_PASSWORD`)**: your Supabase database password
+4. **HikariCP settings** are pre-tuned in `application.properties` for Supabase's connection limits (max pool size 5, short max-lifetime to avoid stale PgBouncer connections)
 
-### Database Migration & Initialization Architecture:
-- **Flyway is the sole database migration manager**:
-  Migrations are maintained in `src/main/resources/db/migration/V1__create_speech_history_table.sql`.
-- **No Schema Conflicts**: `spring.sql.init.mode=never` is explicitly configured to prevent legacy `schema.sql` from clashing with Flyway.
-- **Auto-Provisioning**: On startup, Flyway connects with SSL and automatically provisions the `speech_history` table and indices if they do not exist.
+### Schema
+- Flyway is the sole migration manager (`src/main/resources/db/migration/V1__create_speech_history_table.sql`).
+- `spring.sql.init.mode=never` prevents the legacy `schema.sql` from clashing with Flyway.
 
 ```sql
 CREATE TABLE IF NOT EXISTS speech_history (
@@ -209,46 +205,37 @@ CREATE INDEX IF NOT EXISTS idx_speech_history_created_at ON speech_history (crea
 
 ---
 
-## 6. How to Run the Application
+## 6. Running Locally
 
-### Step 1: Start PostgreSQL
-Ensure PostgreSQL is running locally on port `5432` and database `tts_db` exists.
-
-### Step 2: Run the Java Spring Boot Backend
+### Backend
 ```bash
 cd backend
+# Set TS_PASSWORD, TTS_AWS_ACCESS_KEY_ID, TTS_AWS_SECRET_ACCESS_KEY via your OS/IDE first
 mvn clean compile spring-boot:run
 ```
-The backend starts on `http://localhost:8080`.
-Verify it is running:
-```bash
-curl http://localhost:8080/api/health
-```
+Starts on `http://localhost:8080`. Verify: `curl http://localhost:8080/api/health`
 
-### Step 3: Run the React Frontend
+### Frontend
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
-The frontend starts on `http://localhost:3000` (or `http://localhost:5173`).
-Open your browser and navigate to the application URL!
+Starts on `http://localhost:5173` (Vite default) and proxies `/api` to the backend automatically — no `VITE_API_BASE_URL` needed locally.
 
 ---
 
 ## 7. REST API Documentation
 
 ### 1. Generate Speech
-* **Endpoint**: `POST /api/tts`
+* **Endpoint**: `POST /api/tts` — rate-limited to 10 requests/minute per client IP by default
 * **Content-Type**: `application/json`
 * **Request Body**:
   ```json
   {
     "text": "Hello! Welcome to our Text to Speech application.",
     "language": "en-US",
-    "voice": "en-US-JennyNeural",
-    "speed": 1.0,
-    "pitch": 1.0
+    "voice": "Joanna"
   }
   ```
 * **Success Response (200 OK)**:
@@ -264,96 +251,52 @@ Open your browser and navigate to the application URL!
     "fileSizeBytes": 32768
   }
   ```
+  Note: `audioUrl` is relative to the backend's own origin, not the frontend's — the frontend resolves it via `resolveAudioUrl()` in `services/api.ts`.
+* **Rate Limit Response (429 Too Many Requests)**: returned with a `Retry-After` header once the per-IP limit is exceeded.
 
 ### 2. Available Voices
 * **Endpoint**: `GET /api/voices` or `GET /api/voices?language=en-US`
-* **Response (200 OK)**:
-  ```json
-  [
-    {
-      "id": "Joanna",
-      "name": "Joanna (Neural)",
-      "languageCode": "en-US",
-      "languageName": "English (United States)",
-      "gender": "Female",
-      "accent": "US",
-      "provider": "polly"
-    }
-  ]
-  ```
 
 ### 3. Backend Health
 * **Endpoint**: `GET /api/health`
-* **Response (200 OK)**:
-  ```json
-  {
-    "status": "UP",
-    "provider": "AWS Amazon Polly",
-    "providerConfigured": true,
-    "databaseStatus": "CONNECTED",
-    "timestamp": "2026-09-18T10:15:00Z"
-  }
-  ```
+* Returns live status — checks an actual database connection, not a hardcoded value.
 
 ### 4. Audio Streaming & Download
 * **Endpoint**: `GET /api/audio/{filename}`
-* Streams binary MP3/WAV audio with `Accept-Ranges: bytes` and `Content-Disposition: inline`.
+* Streams binary audio with `Accept-Ranges: bytes`. Files older than `tts.retention-hours` (default 24h) are automatically deleted by a scheduled cleanup job.
 
 ### 5. Speech History
-* **Endpoint**: `GET /api/history`
-* Returns recent generation history from PostgreSQL/Supabase.
-
-### 6. Delete History Record
-* **Endpoint**: `DELETE /api/history/{id}`
-* Deletes a specific speech record by ID from PostgreSQL/Supabase.
-
-### 7. Clear All History Records
-* **Endpoint**: `DELETE /api/history`
-* Deletes all speech history records from PostgreSQL/Supabase.
+* **Endpoint**: `GET /api/history`, `DELETE /api/history/{id}`, `DELETE /api/history`
 
 ### HTTP Status Codes
-* `200 OK`: Successful synthesis, voices list, health check, history deleted.
-* `400 Bad Request`: Empty text, character limit exceeded (>5000), invalid language, mismatched voice and language.
-* `401 Unauthorized`: Invalid or expired API credentials.
-* `403 Forbidden`: API quota exceeded or access restricted.
-* `404 Not Found`: Audio file or record not found.
-* `429 Too Many Requests`: TTS provider rate limit reached.
-* `500 Internal Server Error`: Unexpected backend exception.
-* `503 Service Unavailable`: External TTS provider outage or network unreachable.
+* `200 OK` — Successful synthesis, voices list, health check, history deleted.
+* `400 Bad Request` — Empty text, character limit exceeded (>5000), invalid language, mismatched voice/language.
+* `404 Not Found` — Audio file or history record not found.
+* `413 Payload Too Large` — Request body exceeds size limit.
+* `429 Too Many Requests` — Rate limit exceeded on `POST /api/tts`.
+* `500 Internal Server Error` — Unexpected backend exception.
+* `503 Service Unavailable` — External TTS provider outage or network unreachable.
 
 ---
 
 ## 8. Testing Guide
 
 ### Automated JUnit & MockMvc Tests
-Run the Spring Boot test suite:
 ```bash
 cd backend
 mvn test
 ```
-**Test Results: 12 tests passed, 0 failures, 0 errors:**
-* `TtsApplicationTests`: Context loads successfully.
-* `TtsServiceTest`: Speech synthesis fallback audio generation and duration calculation.
-* `TtsControllerTest`:
-  - `GET /api/health`: 200 OK, returns provider and database status.
-  - `GET /api/voices`: 200 OK, returns neural voice list.
-  - `GET /api/voices?language=hi-IN`: 200 OK, filters voices by language.
-  - `POST /api/tts`: 200 OK, valid request synthesizes speech.
-  - `POST /api/tts` (Empty Text): 400 Bad Request validation error.
-  - `POST /api/tts` (Text > 5000 chars): 400 Bad Request validation error.
-  - `POST /api/tts` (Unsupported Language): 400 Bad Request.
-  - `POST /api/tts` (Voice/Language Mismatch): 400 Bad Request.
-  - `GET /api/history`: 200 OK, returns history list.
-  - `DELETE /api/history/{id}`: 200 OK, deletes specified history entry.
-  - `DELETE /api/history`: 200 OK, clears all history entries.
-* Health check endpoint
-* Empty text validation (400 Bad Request)
-* Character length limit validation (>5000 chars)
-* Unsupported language validation
-* Voice and language mismatch validation
-* Speech generation audio streaming
+Covers: context loading, TTS fallback synthesis, `/api/health`, `/api/voices` (with and without language filter), `POST /api/tts` (success + 4 validation failure cases), and full CRUD on `/api/history`.
 
 ### Postman Testing
-1. Import `postman/TTS_API_Collection.postman_collection.json` into Postman.
-2. Set the `baseUrl` variable to `http://localhost:8080`.
-3. Run the requests to verify positive flows and error status codes.
+1. Import `postman/TTS_API_Collection.postman_collection.json`.
+2. Set `baseUrl` to `http://localhost:8080` for local testing, or the live Render URL for production testing.
+3. Run requests to verify positive flows and error status codes.
+
+---
+
+## 9. Known Limitations
+
+* **Ephemeral storage on Render free tier**: generated audio files live on local disk. A Render restart (common on the free tier after idle spin-down) wipes files that hadn't already expired via the retention job. Migrating to S3-backed storage (as done in a related project, SecureSign) would fix this permanently.
+* **`es-MX` not selectable in the UI**: the backend fully supports Spanish (Mexico) voices, but the frontend's language dropdown doesn't currently list it — see Section 2.
+* **No authentication**: history is global, not per-user. Adding JWT-based auth (as in SecureSign) would be needed for multi-tenant use.
