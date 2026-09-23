@@ -1,6 +1,7 @@
 import React from 'react';
 import { History, Play, Trash2, Download, Calendar } from 'lucide-react';
 import { SpeechHistoryItem } from '../types';
+import { resolveAudioUrl } from '../services/api';
 
 interface SpeechHistoryListProps {
     items: SpeechHistoryItem[];
@@ -83,7 +84,7 @@ export const SpeechHistoryList: React.FC<SpeechHistoryListProps> = ({
                                     </button>
 
                                     <a
-                                        href={item.audioUrl}
+                                        href={resolveAudioUrl(item.audioUrl)}
                                         download={`tts-speech-${item.id}.${item.audioFormat || 'mp3'}`}
                                         className="inline-flex items-center gap-1 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 px-2 py-1 rounded-lg transition-colors cursor-pointer"
                                         title="Download audio file"

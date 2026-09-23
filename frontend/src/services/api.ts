@@ -8,6 +8,22 @@ import { Voice, TtsRequest, TtsResponse, HealthStatus, SpeechHistoryItem, ApiErr
 // or every request below will hit Vercel's own domain instead of Render's.
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
+// The backend returns audioUrl as a relative path (e.g. "/api/audio/x.mp3"),
+// same as every other endpoint. In local dev that's fine - the Vite proxy
+// resolves it against localhost:8080. In production, a relative URL used
+// directly as an <audio src> or download <a href> resolves against the
+// CURRENT page's origin (Vercel), not the backend (Render) - so it 404s.
+// Every place that plays or downloads generated audio must resolve the
+// URL through this helper instead of using audioUrl directly.
+export function resolveAudioUrl(audioUrl: string): string {
+  if (!audioUrl) return audioUrl;
+  // Already absolute (e.g. a future S3/CDN URL) - leave it alone.
+  if (audioUrl.startsWith('http://') || audioUrl.startsWith('https://')) {
+    return audioUrl;
+  }
+  return `${API_BASE_URL}${audioUrl}`;
+}
+
 export const DEFAULT_LANGUAGES = [
   { code: 'en-US', name: 'English (United States)', nativeName: 'English (US)', flag: '🇺🇸' },
   { code: 'en-GB', name: 'English (United Kingdom)', nativeName: 'English (UK)', flag: '🇬🇧' },
